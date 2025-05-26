@@ -1,0 +1,525 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewsUSA24 - Modern News Website</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body {
+            background-color: #151515;
+            color: #e5e5e5;
+            font-family: 'Inter', sans-serif;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #151515;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #C4FF00;
+            border-radius: 4px;
+        }
+        .slide {
+            transition: all 1s ease-in-out;
+            opacity: 0;
+            transform: translateX(100%);
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .slide.active {
+            opacity: 1;
+            transform: translateX(0);
+            z-index: 1;
+        }
+        
+        .slide.prev {
+            transform: translateX(-100%);
+        }
+        
+        .slide-dot {
+            transition: all 0.3s ease;
+            width: 30px !important;
+            height: 3px !important;
+            border-radius: 0 !important;
+        }
+        
+        .slide-dot.active {
+            background-color: #C4FF00 !important;
+            width: 50px !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar Component -->
+    <nav class="bg-[#C4FF00] border-b border-gray-800 fixed w-full z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="index.html" class="flex items-center space-x-2">
+                        <img src="assets/images/logo.png" alt="NewsUSA24 Logo" class="h-8 w-auto">
+                        <span class="text-xl md:text-2xl font-bold text-[#151515]">NewsUSA24</span>
+                    </a>
+                </div>
+                <div class="hidden md:flex items-center space-x-4 lg:space-x-6">
+                    <a href="#home" class="text-[#151515] hover:text-gray-800 transition text-sm lg:text-base">Home</a>
+                    <a href="#daily-news" class="text-[#151515] hover:text-gray-800 transition text-sm lg:text-base">Daily News</a>
+                    <a href="#contact" class="text-[#151515] hover:text-gray-800 transition text-sm lg:text-base">Contact</a>
+                    <div class="relative ml-4">
+                        <input type="text" id="searchInput" placeholder="Search articles..." 
+                               class="pl-10 pr-4 py-2 rounded-full bg-gray-800 border border-gray-700 
+                                      focus:outline-none focus:ring-2 focus:ring-[#151515] text-gray-300
+                                      w-40 lg:w-64 text-sm">
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                </div>
+                <div class="md:hidden flex items-center">
+                    <button id="menuToggle" class="text-[#151515] hover:text-gray-800 focus:outline-none p-2">
+                        <i class="fas fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobileMenu" class="hidden md:hidden bg-[#C4FF00] border-t border-gray-800">
+            <div class="px-4 pt-2 pb-4 space-y-3">
+                <a href="#home" class="block text-[#151515] hover:text-gray-800 transition py-2">Home</a>
+                <a href="#categories" class="block text-[#151515] hover:text-gray-800 transition py-2">Categories</a>
+                <a href="#daily-news" class="block text-[#151515] hover:text-gray-800 transition py-2">Daily News</a>
+                <a href="#contact" class="block text-[#151515] hover:text-gray-800 transition py-2">Contact</a>
+                <div class="relative py-2">
+                    <input type="text" id="mobileSearchInput" placeholder="Search articles..." 
+                           class="w-full pl-10 pr-4 py-2 rounded-full bg-gray-800 border border-gray-700 
+                                  focus:outline-none focus:ring-2 focus:ring-[#151515] text-gray-300 text-sm">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero/Featured Section with Slideshow -->
+    <section id="home" class="pt-20 pb-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-6 text-[#C4FF00]">Featured News</h1>
+            <div class="relative h-96 rounded-lg overflow-hidden">
+                <!-- Slideshow Container -->
+                <div id="slideshow" class="relative w-full h-full">
+                    <!-- Slides will be dynamically populated -->
+                </div>
+                <!-- Navigation Dots -->
+                <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-3 z-10">
+                    <!-- Dots will be dynamically populated -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Daily News Section -->
+    <section id="daily-news" class="py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold mb-6 text-[#C4FF00]">Daily News</h2>
+            <div id="articleGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Article Card Component -->
+                <a href="articles/guatemalan-asylum-case.html" class="group bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-xl hover:shadow-[#C4FF00]/20 cursor-pointer">
+                    <img src="assets/images/A03.jpg" alt="Guatemalan Asylum Case" class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110">
+                    <div class="p-6">
+                        <span class="text-sm text-[#C4FF00]">Politics</span>
+                        <h3 class="text-xl font-semibold mt-2 text-white group-hover:text-[#C4FF00] transition-colors">U.S. Federal Judge Orders Return of Wrongfully Deported Guatemalan Asylum Seeker</h3>
+                        <p class="text-gray-400 mt-2">Judge orders return of Guatemalan asylum seeker deported in violation of court order...</p>
+                        <div class="mt-4">
+                            <span class="inline-flex items-center text-[#C4FF00] hover:underline">
+                                Read More
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+                
+                <a href="articles/annabelle-doll.html" class="group bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-xl hover:shadow-[#C4FF00]/20 cursor-pointer">
+                    <img src="assets/images/A01.jpg" alt="Annabelle Doll" class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110">
+                    <div class="p-6">
+                        <span class="text-sm text-[#C4FF00]">Paranormal</span>
+                        <h3 class="text-xl font-semibold mt-2 text-white group-hover:text-[#C4FF00] transition-colors">The Truth About the Annabelle Doll</h3>
+                        <p class="text-gray-400 mt-2">Debunking myths and clarifying facts about the infamous Annabelle doll...</p>
+                        <div class="mt-4">
+                            <span class="inline-flex items-center text-[#C4FF00] hover:underline">
+                                Read More
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+                
+                <a href="articles/spacex-starlink-launch.html" class="group bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-xl hover:shadow-[#C4FF00]/20 cursor-pointer">
+                    <img src="assets/images/A02.jpg" alt="SpaceX Starlink Launch" class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110">
+                    <div class="p-6">
+                        <span class="text-sm text-[#C4FF00]">Space Technology</span>
+                        <h3 class="text-xl font-semibold mt-2 text-white group-hover:text-[#C4FF00] transition-colors">SpaceX Successfully Launches 23 Starlink Satellites</h3>
+                        <p class="text-gray-400 mt-2">SpaceX launches 23 Starlink V2 Mini satellites from Cape Canaveral...</p>
+                        <div class="mt-4">
+                            <span class="inline-flex items-center text-[#C4FF00] hover:underline">
+                                Read More
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="articles/spacex-dragon-return.html" class="group bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-xl hover:shadow-[#C4FF00]/20 cursor-pointer">
+                    <div class="w-full h-48 transition-transform duration-300 group-hover:scale-110">
+                        <iframe width="100%" height="100%" src="https://abc7.com/video/embed/?pid=16539079" allowfullscreen frameborder="0"></iframe>
+                    </div>
+                    <div class="p-6">
+                        <span class="text-sm text-[#C4FF00]">Space Exploration</span>
+                        <h3 class="text-xl font-semibold mt-2 text-white group-hover:text-[#C4FF00] transition-colors">SpaceX Dragon Returns Safely to Earth</h3>
+                        <p class="text-gray-400 mt-2">The SpaceX Dragon spacecraft has successfully returned to Earth, completing its mission...</p>
+                        <div class="mt-4">
+                            <span class="inline-flex items-center text-[#C4FF00] hover:underline">
+                                Read More
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+
+                <a href="articles/champions-league-qualification.html" class="group bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-all duration-300 hover:transform hover:scale-105 hover:shadow-xl hover:shadow-[#C4FF00]/20 cursor-pointer">
+                    <img src="assets/images/A04.jpg" alt="Champions League Qualification" class="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110">
+                    <div class="p-6">
+                        <span class="text-sm text-[#C4FF00]">Sports</span>
+                        <h3 class="text-xl font-semibold mt-2 text-white group-hover:text-[#C4FF00] transition-colors">Champions League Qualification: What It Means for Premier League Contenders</h3>
+                        <p class="text-gray-400 mt-2">As the 2024-25 Premier League season concludes, the race for Champions League qualification intensifies with major clubs vying for coveted positions...</p>
+                        <div class="mt-4">
+                            <span class="inline-flex items-center text-[#C4FF00] hover:underline">
+                                Read More
+                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+
+
+    <!-- Footer Component -->
+    <footer id="contact" class="bg-[#151515] border-t border-gray-800 py-10 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                    <h3 class="text-xl font-bold text-[#C4FF00] mb-4">NewsUSA24</h3>
+                    <p class="text-gray-400">Your source for the latest technology news and updates.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-[#C4FF00] mb-4">Quick Links</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#home" class="text-gray-400 hover:text-[#C4FF00]">Home</a></li>
+                        <li><a href="#daily-news" class="text-gray-400 hover:text-[#C4FF00]">Daily News</a></li>
+                        <li><a href="#contact" class="text-gray-400 hover:text-[#C4FF00]">Contact</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-[#C4FF00] mb-4">Connect With Us</h3>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-[#C4FF00]"><i class="fab fa-twitter text-2xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-[#C4FF00]"><i class="fab fa-facebook text-2xl"></i></a>
+                        <a href="#" class="text-gray-400 hover:text-[#C4FF00]"><i class="fab fa-instagram text-2xl"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 pt-8 border-t border-gray-800 text-center text-gray-400">
+                <p>&copy; 2025 NewsUSA24. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Slideshow functionality
+        const slides = document.querySelectorAll('.slide');
+        const dots = document.querySelectorAll('.slide-dot');
+        let currentSlide = 0;
+
+        function showSlide(index) {
+            slides.forEach(slide => slide.style.opacity = '0');
+            dots.forEach(dot => dot.classList.remove('active'));
+            slides[index].style.opacity = '1';
+            dots[index].classList.add('active');
+            currentSlide = index;
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % slides.length;
+            showSlide(currentSlide);
+        }
+
+        function prevSlide() {
+            currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+            showSlide(currentSlide);
+        }
+
+        // Event listeners
+        document.getElementById('nextSlide').addEventListener('click', nextSlide);
+        document.getElementById('prevSlide').addEventListener('click', prevSlide);
+        dots.forEach((dot, index) => {
+            dot.addEventListener('click', () => showSlide(index));
+        });
+
+        // Auto-advance slides every 5 seconds
+        setInterval(nextSlide, 5000);
+
+        // Mobile menu toggle (existing code)
+        document.getElementById('menuToggle').addEventListener('click', function() {
+            document.getElementById('mobileMenu').classList.toggle('hidden');
+        });
+   
+    </script>
+</body>
+</html>
+
+<style>
+    .slide-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+
+    .slide {
+        transition: all 2s cubic-bezier(0.4, 0, 0.2, 1);
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    
+    .slide.active {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+        z-index: 1;
+    }
+    
+    .slide-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .slide-dot.active {
+        background: #C4FF00;
+        transform: scale(1.2);
+        border-color: rgba(196, 255, 0, 0.3);
+    }
+    
+    .slide-dot:hover {
+        background: rgba(196, 255, 0, 0.5);
+    }
+</style>
+
+<script>
+    // Search functionality
+    function performSearch(searchInput) {
+        const searchTerm = searchInput.value.toLowerCase();
+        const articles = document.querySelectorAll('#articleGrid .bg-gray-800');
+        
+        articles.forEach(article => {
+            const title = article.querySelector('h3').textContent.toLowerCase();
+            const description = article.querySelector('p').textContent.toLowerCase();
+            const category = article.querySelector('span').textContent.toLowerCase();
+            
+            if (title.includes(searchTerm) || description.includes(searchTerm) || category.includes(searchTerm)) {
+                article.style.display = '';
+            } else {
+                article.style.display = 'none';
+            }
+        });
+    }
+
+    // Add event listeners for both search inputs
+    document.getElementById('searchInput')?.addEventListener('input', function() {
+        performSearch(this);
+    });
+
+    document.getElementById('mobileSearchInput')?.addEventListener('input', function() {
+        performSearch(this);
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const slideshowData = [
+            {
+                image: 'assets/images/A03.jpg',
+                title: 'U.S. Federal Judge Orders Return of Wrongfully Deported Guatemalan Asylum Seeker',
+                description: 'Judge orders return of Guatemalan asylum seeker deported in violation of court order...',
+                link: 'articles/guatemalan-asylum-case.html',
+                category: 'Politics'
+            },
+            {
+                image: 'assets/images/A01.jpg',
+                title: 'The Truth About the Annabelle Doll',
+                description: 'Debunking myths and clarifying facts about the infamous Annabelle doll...',
+                link: 'articles/annabelle-doll.html',
+                category: 'Paranormal'
+            },
+            {
+                image: 'assets/images/A02.jpg',
+                title: 'SpaceX Successfully Launches 23 Starlink Satellites',
+                description: 'SpaceX launches 23 Starlink V2 Mini satellites from Cape Canaveral...',
+                link: 'articles/spacex-starlink-launch.html',
+                category: 'Space Technology'
+            }
+        ];
+    
+        const slideshow = document.getElementById('slideshow');
+        const dotsContainer = document.querySelector('.absolute.bottom-6');
+    
+        // Create slides and dots
+        slideshowData.forEach((data, index) => {
+            // Create slide
+            const slide = document.createElement('div');
+            slide.className = `slide ${index === 0 ? 'active' : ''}`;
+            slide.innerHTML = `
+                <div class="relative w-full h-full overflow-hidden rounded-lg">
+                    <img src="${data.image}" alt="${data.title}" class="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700">
+                    <div class="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 to-transparent">
+                        <span class="inline-block px-4 py-1 rounded-full text-sm font-medium bg-[#C4FF00] text-black mb-4">${data.category}</span>
+                        <h2 class="text-2xl font-bold text-white mb-2">${data.title}</h2>
+                        <p class="text-gray-200 mb-4">${data.description}</p>
+                        <a href="${data.link}" class="inline-flex items-center text-[#C4FF00] hover:underline">
+                            Read More
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            `;
+            slideshow.appendChild(slide);
+    
+            // Create dot
+            const dot = document.createElement('button');
+            dot.className = `slide-dot ${index === 0 ? 'active' : ''}`;
+            dot.onclick = () => showSlide(index);
+            dotsContainer.appendChild(dot);
+        });
+    
+        let currentSlide = 0;
+        let slideInterval;
+        const slides = document.querySelectorAll('.slide');
+        const dots = document.querySelectorAll('.slide-dot');
+        const SLIDE_DURATION = 5000; // Changed to 5 seconds
+    
+        function showSlide(index) {
+            slides.forEach(slide => slide.classList.remove('active'));
+            dots.forEach(dot => dot.classList.remove('active'));
+            
+            slides[index].classList.add('active');
+            dots[index].classList.add('active');
+            currentSlide = index;
+        }
+    
+        function nextSlide() {
+            const nextIndex = (currentSlide + 1) % slides.length;
+            showSlide(nextIndex);
+        }
+    
+        function startSlideshow() {
+            if (slideInterval) clearInterval(slideInterval);
+            slideInterval = setInterval(nextSlide, SLIDE_DURATION);
+        }
+    
+        // Touch support
+        let touchStartX = 0;
+        let touchEndX = 0;
+    
+        slideshow.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+            clearInterval(slideInterval);
+        });
+    
+        slideshow.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+            startSlideshow();
+        });
+    
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const diff = touchStartX - touchEndX;
+    
+            if (Math.abs(diff) > swipeThreshold) {
+                if (diff > 0) {
+                    nextSlide();
+                } else {
+                    showSlide((currentSlide - 1 + slides.length) % slides.length);
+                }
+            }
+        }
+    
+        // Pause on hover
+        slideshow.addEventListener('mouseenter', () => clearInterval(slideInterval));
+        slideshow.addEventListener('mouseleave', startSlideshow);
+    
+        // Start the slideshow
+        startSlideshow();
+    });
+</script>
